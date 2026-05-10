@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, systemPreferences, desktopCapturer } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, systemPreferences, desktopCapturer, Notification } from 'electron';
 import { electronApp } from '@electron-toolkit/utils';
 import { spawn as spawnPty, type IPty } from 'node-pty';
 import { spawn as spawnChild } from 'node:child_process';
@@ -136,6 +136,29 @@ function fireCronJob(job: CronJob): void {
 }
 
 const cronScheduler = new CronScheduler(fireCronJob);
+
+// ── OS notifications ─────────────────────────────────────────────────────────
+// Per-tab BEL throttle: avoid spamming the user when an agent fires many bells.
+const lastBellNotifyAt = new Map<string, number>();
+const BELL_NOTIFY_COOLDOWN_MS = 10_000;
+
+/**
+ * Show an OS notification if the main window is not currently focused.
+ * Clicking the notification brings the window to the foreground.
+ */
+function notifyIfUnfocused(title: string, body: string): void {
+  if (!Notification.isSupported()) return;
+  if (mainWindow?.isFocused()) return;
+  const n = new Notification({ title, body, silent: true });
+  n.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  n.show();
+}
 
 // ── IPC registration ──────────────────────────────────────────────────────────
 
@@ -731,12 +754,28 @@ function registerIpc(): void {
 
     pty.onData((data) => {
       if (shuttingDown || event.sender.isDestroyed()) return;
+      // BEL character (\x07) — agent is requesting attention.
+      if (data.includes('\x07')) {
+        const now = Date.now();
+        const last = lastBellNotifyAt.get(req.tabId) ?? 0;
+        if (now - last >= BELL_NOTIFY_COOLDOWN_MS) {
+          lastBellNotifyAt.set(req.tabId, now);
+          const displayName = INSTALL_SPECS[req.agentId as AgentId]?.displayName ?? req.agentId;
+          notifyIfUnfocused(displayName, 'Needs your attention');
+        }
+      }
       event.sender.send(IPC.ptyData, { tabId: req.tabId, data });
     });
     pty.onExit(({ exitCode, signal }) => {
       if (!shuttingDown && !event.sender.isDestroyed()) {
         event.sender.send(IPC.ptyExit, { tabId: req.tabId, exitCode, signal: signal ?? null });
       }
+      // Notify when the agent finishes its task cleanly.
+      if (exitCode === 0) {
+        const displayName = INSTALL_SPECS[req.agentId as AgentId]?.displayName ?? req.agentId;
+        notifyIfUnfocused(displayName, 'Task completed');
+      }
+      lastBellNotifyAt.delete(req.tabId);
       if (ptys.get(req.tabId) === pty) ptys.delete(req.tabId);
       // Restore ~/.claude/settings.json to its pre-launch state.
       claudeSettingsRestore?.();
