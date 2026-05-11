@@ -104,6 +104,12 @@ export const INSTALL_SPECS: Record<AgentId, AgentInstallSpec | undefined> = {
     description: 'Hermes coding agent — install manually and ensure `hermes` is on PATH',
     bin: 'hermes',
   },
+  openclaw: {
+    agentId: 'openclaw',
+    displayName: 'OpenClaw',
+    description: 'OpenClaw coding agent (npm: openclaw) — install manually',
+    bin: 'openclaw',
+  },
   'deepseek-tui': {
     agentId: 'deepseek-tui',
     displayName: 'DeepSeekTUI',

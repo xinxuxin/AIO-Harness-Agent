@@ -12,6 +12,7 @@
  *   opencode     ~/.local/share/opencode/opencode.db                     (SQLite)
  *   pi           ~/.pi/agent/sessions/<encoded-cwd>/<ts>_<uuid>.jsonl    (JSONL per session)
  *   gemini       ~/.gemini/tmp/<project-id>/chats/session-*.jsonl         (JSONL per session)
+ *   openclaw     ~/.openclaw/agents/*\/sessions/*.jsonl                   (JSONL per session)
  *
  * Can be called at any time — whether or not the agent is currently running,
  * and whether or not Tday is open.
@@ -22,11 +23,12 @@ import { scanCodexSessions } from './codex.js';
 import { scanOpencodeDB } from './opencode.js';
 import { scanPiSessions } from './pi.js';
 import { scanGeminiSessions } from './gemini.js';
+import { scanOpenClawSessions } from './openclaw.js';
 import type { UsageRecord } from '../types.js';
 import type { UsageFilter } from '../store.js';
 
 /** Agent ids whose usage comes from session files (not usage.jsonl). */
-export const SESSION_FILE_AGENTS = new Set(['claude-code', 'codex', 'opencode', 'pi', 'gemini']);
+export const SESSION_FILE_AGENTS = new Set(['claude-code', 'codex', 'opencode', 'pi', 'gemini', 'openclaw']);
 
 /**
  * Scan all supported agents' session files and return the combined list of
@@ -54,6 +56,9 @@ export function scanAllSessions(filter: UsageFilter = {}): UsageRecord[] {
   }
   if (!agentId || agentId === 'gemini') {
     results.push(...scanGeminiSessions(fromTs, toTs));
+  }
+  if (!agentId || agentId === 'openclaw') {
+    results.push(...scanOpenClawSessions(fromTs, toTs));
   }
 
   // Apply providerId filter if requested

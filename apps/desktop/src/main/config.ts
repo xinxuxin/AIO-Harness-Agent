@@ -31,6 +31,7 @@ const DETECT_PRIORITY: Array<{ id: AgentId; bin: string }> = [
   { id: 'qwen-code',     bin: 'qwen' },
   { id: 'crush',         bin: 'crush' },
   { id: 'hermes',        bin: 'hermes' },
+  { id: 'openclaw',      bin: 'openclaw' },
   { id: 'deepseek-tui',  bin: 'deepseek' },
   { id: 'pi',            bin: 'pi' },
 ];

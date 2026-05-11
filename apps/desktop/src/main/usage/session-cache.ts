@@ -44,6 +44,7 @@ import { scanCodexSessions } from './session-readers/codex.js';
 import { scanOpencodeDB } from './session-readers/opencode.js';
 import { scanPiSessions } from './session-readers/pi.js';
 import { scanGeminiSessions } from './session-readers/gemini.js';
+import { scanOpenClawSessions, collectOpenClawSessionFiles } from './session-readers/openclaw.js';
 
 const TDAY_DIR = join(homedir(), '.tday');
 const CACHE_FILE = join(TDAY_DIR, 'session-cache.jsonl');
@@ -164,6 +165,11 @@ const AGENT_WATCHERS: AgentWatcher[] = [
       return files;
     },
     scan: () => scanGeminiSessions(),
+  },
+  {
+    agentId: 'openclaw',
+    collectFiles: () => collectOpenClawSessionFiles(),
+    scan: () => scanOpenClawSessions(),
   },
 ];
 
