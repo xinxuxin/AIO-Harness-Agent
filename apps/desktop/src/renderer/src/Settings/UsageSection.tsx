@@ -105,6 +105,13 @@ export function UsageSection({ agents }: UsageSectionProps) {
 
   useEffect(() => {
     void loadUsage(usageDateMode, usageCustomFrom, usageCustomTo, usageAgentId);
+    // The IPC handler triggers a background session-cache refresh and returns
+    // stale data immediately. Re-fetch after ~2.5 s so the UI shows fresh data
+    // once the background scan has written the updated cache.
+    const timer = setTimeout(() => {
+      void loadUsage(usageDateMode, usageCustomFrom, usageCustomTo, usageAgentId);
+    }, 2500);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usageDateMode, usageCustomFrom, usageCustomTo, usageAgentId]);
 
@@ -245,16 +252,54 @@ export function UsageSection({ agents }: UsageSectionProps) {
                 sub={`${usageData.throughputReqPerDay.toFixed(1)} req/d`}
               />
 {(() => {
-                const filtered = usageAgentId
-                  ? cronStats.filter((c) => cronJobAgentMap[c.jobId] === usageAgentId)
-                  : cronStats;
+                // Compute period fromTs/toTs matching the active date mode.
+                const now = Date.now();
+                let periodFrom: number | undefined;
+                let periodTo: number | undefined;
+                switch (usageDateMode) {
+                  case 'today': {
+                    const d = new Date(); d.setHours(0, 0, 0, 0);
+                    periodFrom = d.getTime();
+                    break;
+                  }
+                  case 'this-week': {
+                    const d = new Date(); d.setHours(0, 0, 0, 0);
+                    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+                    periodFrom = d.getTime();
+                    break;
+                  }
+                  case 'this-month': {
+                    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(1);
+                    periodFrom = d.getTime();
+                    break;
+                  }
+                  case '7d':  periodFrom = now - 7  * 86400000; break;
+                  case '30d': periodFrom = now - 30 * 86400000; break;
+                  case '90d': periodFrom = now - 90 * 86400000; break;
+                  case 'custom':
+                    if (usageCustomFrom) periodFrom = new Date(usageCustomFrom).getTime();
+                    if (usageCustomTo) {
+                      const d = new Date(usageCustomTo); d.setHours(23, 59, 59, 999);
+                      periodTo = d.getTime();
+                    }
+                    break;
+                }
+                // Filter by agent and by whether the job ran within the period.
+                const filtered = cronStats.filter((c) => {
+                  if (usageAgentId && cronJobAgentMap[c.jobId] !== usageAgentId) return false;
+                  const ran = c.lastRunAt;
+                  if (ran === null) return false;
+                  if (periodFrom !== undefined && ran < periodFrom) return false;
+                  if (periodTo   !== undefined && ran > periodTo)   return false;
+                  return true;
+                });
                 if (filtered.length === 0) return null;
                 const last = Math.max(...filtered.map((c) => c.lastRunAt ?? 0));
                 return (
                   <StatCard
                     label="CronJob runs"
-                    value={fmtNum(filtered.reduce((s, c) => s + c.runCount, 0))}
-                    sub={`${filtered.length} job${filtered.length !== 1 ? 's' : ''} · last ${last ? new Date(last).toLocaleDateString() : 'never'}`}
+                    value={String(filtered.length)}
+                    sub={`job${filtered.length !== 1 ? 's' : ''} ran · last ${last ? new Date(last).toLocaleDateString() : 'never'}`}
                   />
                 );
               })()}
