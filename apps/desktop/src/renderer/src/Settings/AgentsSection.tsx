@@ -13,7 +13,11 @@ function buildAgentsCfg(agentList: AgentInfo[]): AgentsConfig {
     agents: Object.fromEntries(
       agentList.map((a) => [
         a.id,
-        { providerId: a.providerId || undefined, model: a.model || undefined },
+        {
+          providerId: a.providerId || undefined,
+          model: a.model || undefined,
+          bin: a.bin || undefined,
+        },
       ]),
     ) as AgentsConfig['agents'],
   };
@@ -64,6 +68,19 @@ export function AgentsSection({
   };
 
   const flushAgentModel = () => persistAgents(agents);
+
+  const setAgentBin = (agentId: string, bin: string) => {
+    const next = agents.map((a) => (a.id === agentId ? { ...a, bin } : a));
+    onAgentsChange(next);
+  };
+
+  const flushAgentBin = () => persistAgents(agents);
+
+  const resetAgentBin = (agentId: string) => {
+    const next = agents.map((a) => (a.id === agentId ? { ...a, bin: undefined } : a));
+    onAgentsChange(next);
+    persistAgents(next);
+  };
 
   const setAsDefault = (agentId: AgentId) => {
     const next = agents.map((a) => ({ ...a, isDefault: a.id === agentId }));
@@ -299,6 +316,47 @@ export function AgentsSection({
                   />
                   Default for new tabs
                 </label>
+              </div>
+
+              {/* Path */}
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500">Path</span>
+                  {a.bin ? (
+                    <button
+                      onClick={() => resetAgentBin(a.id)}
+                      className="text-[10px] text-zinc-500 hover:text-rose-400"
+                    >
+                      Reset
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex gap-1">
+                  <input
+                    className="input min-w-0 flex-1 font-mono text-[11px]"
+                    placeholder={a.detect.path ?? a.defaultBin ?? a.id}
+                    value={a.bin ?? ''}
+                    onChange={(e) => setAgentBin(a.id, e.target.value)}
+                    onBlur={() => flushAgentBin()}
+                  />
+                  <button
+                    className="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    onClick={async () => {
+                      const picked = await window.tday.pickFile({ filters: [] });
+                      if (picked) {
+                        setAgentBin(a.id, picked);
+                        const next = agents.map((ag) => (ag.id === a.id ? { ...ag, bin: picked } : ag));
+                        onAgentsChange(next);
+                        persistAgents(next);
+                      }
+                    }}
+                  >
+                    Browse
+                  </button>
+                </div>
+                <p className="mt-1 text-[10px] text-zinc-600">
+                  Binary name or absolute path. Leave empty to use the default.
+                </p>
               </div>
 
               {/* Cron jobs for this agent */}

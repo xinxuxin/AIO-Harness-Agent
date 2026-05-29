@@ -19,6 +19,8 @@ export interface Tab {
   initialPrompt?: string;
   /** True when opened by the cron scheduler — agents use batch/non-interactive mode. */
   isCronJob?: boolean;
+  /** The cron job ID that spawned this tab — used to close it when the job is disabled. */
+  cronJobId?: string;
   /** CoWorker id to apply — its system prompt is prepended to the agent's initial prompt. */
   coworkerId?: string;
   /** Provider profile id override for this tab — overrides the agent's default binding. */
@@ -74,6 +76,7 @@ export const AGENT_TITLE_MAP: Record<AgentId, string> = {
   'qwen-code': 'Qwen',
   crush: 'Crush',
   hermes: 'Hermes',
+  openclaw: 'OpenClaw',
   'deepseek-tui': 'DeepSeekTUI',
   terminal: 'Terminal',
 };
@@ -88,6 +91,7 @@ export const AGENT_COLOR_MAP: Record<AgentId, string> = {
   'qwen-code': '#f472b6',
   crush: '#fb7185',
   hermes: '#fbbf24',
+  openclaw: '#38bdf8',
   'deepseek-tui': '#4D6BFE',
   terminal: '#6b7280',
 };

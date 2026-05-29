@@ -130,6 +130,34 @@ describe('httpGet', () => {
   });
 });
 
+describe('probeBaseUrl', () => {
+  it('accepts HTTP reachability for a base URL even without a TCP precheck', async () => {
+    mockHttpRequestImpl = (_opts, cb) => {
+      (cb as (r: unknown) => void)(makeMockHttpRes(200, '{"data":[]}'));
+      return { on: vi.fn().mockReturnThis(), end: vi.fn() };
+    };
+
+    const result = await (await import('../probe.js')).probeBaseUrl('http://192.168.1.19:1234/v1', 500);
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('keeps probing when the base URL returns 200 but no model list, then discovers models on /v1/models', async () => {
+    let callCount = 0;
+    mockHttpRequestImpl = (_opts, cb) => {
+      const body = callCount++ === 0
+        ? '{"error":"Unexpected endpoint or method. (GET /v1)"}'
+        : '{"data":[{"id":"qwen3.6-35b-a3b-mtp"}]}';
+      (cb as (r: unknown) => void)(makeMockHttpRes(200, body));
+      return { on: vi.fn().mockReturnThis(), end: vi.fn() };
+    };
+
+    const result = await (await import('../probe.js')).probeBaseUrl('http://192.168.1.19:1234/v1', 500);
+    expect(result.ok).toBe(true);
+    expect(result.models).toEqual(['qwen3.6-35b-a3b-mtp']);
+  });
+});
+
 // ─── probeService ─────────────────────────────────────────────────────────────
 
 const OLLAMA_SPEC: ServiceSpec = {

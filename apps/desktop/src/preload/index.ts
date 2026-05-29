@@ -127,6 +127,11 @@ const api = {
     ipcRenderer.on(IPC.cronJobFired, fn);
     return () => ipcRenderer.off(IPC.cronJobFired, fn);
   },
+  onCronTabsKill: (cb: (jobIds: string[]) => void) => {
+    const fn = (_: unknown, jobIds: string[]) => cb(jobIds);
+    ipcRenderer.on(IPC.cronTabsKill, fn);
+    return () => ipcRenderer.off(IPC.cronTabsKill, fn);
+  },
   // ── CoWorker management ───────────────────────────────────────────────────────
   listCoworkers: () =>
     ipcRenderer.invoke(IPC.coworkerList) as Promise<CoWorker[]>,

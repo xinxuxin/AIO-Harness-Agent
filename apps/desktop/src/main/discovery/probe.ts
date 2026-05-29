@@ -178,8 +178,8 @@ export async function probeService(
  * Probe an arbitrary base URL (e.g. `http://localhost:1234/v1`) for models.
  *
  * Strategy:
- *   1. TCP probe the host:port first — if the port is closed it's truly unreachable.
- *   2. If TCP succeeds the service IS running; attempt HTTP model enumeration.
+ *   1. TCP probe the host:port first as a fast signal.
+ *   2. Always attempt HTTP model enumeration, even if TCP times out.
  *   3. Any HTTP response (even 4xx) confirms reachability.
  */
 export async function probeBaseUrl(
@@ -196,35 +196,34 @@ export async function probeBaseUrl(
   const host = u.hostname;
   const port = Number(u.port) || (u.protocol === 'https:' ? 443 : 80);
 
-  // ── Step 1: TCP reachability (works for localhost AND LAN IPs) ──────────────
-  const t0 = Date.now();
-  const tcpOpen = await tcpProbe(host, port, Math.min(timeoutMs, 2_000));
-  if (!tcpOpen) {
-    return { ok: false, models: [], latencyMs: 0, error: 'Not reachable' };
-  }
-  const tcpLatency = Date.now() - t0;
-
-  // ── Step 2: HTTP model enumeration (best-effort) ───────────────────────────
+  // ── Step 1: HTTP model enumeration (best-effort) ───────────────────────────
   const base = rawUrl.trim().replace(/\/$/, '');
   const candidates: string[] = [];
+  candidates.push(base);
   candidates.push(base + '/models');
   if (!/\/v\d+$/.test(base)) candidates.push(base + '/v1/models');
   // Ollama: strip possible /v1 suffix and probe /api/tags
   const ollamaBase = base.replace(/\/v\d+$/, '');
   candidates.push(ollamaBase + '/api/tags');
 
+  let reachable = false;
+  let bestLatency = 0;
+
   for (const url of candidates) {
     const result = await httpGet(url, timeoutMs);
-    if (result.ok) {
-      const models = parseModelList(result.body);
+    const models = parseModelList(result.body);
+    if (models.length > 0) {
       return { ok: true, models, latencyMs: result.latencyMs };
     }
-    if (result.status > 0) {
-      // Got an HTTP response (4xx / 5xx) — service is running
-      return { ok: true, models: [], latencyMs: result.latencyMs };
+    if (result.ok || result.status > 0) {
+      reachable = true;
+      bestLatency = result.latencyMs;
     }
   }
 
-  // TCP was open but all HTTP attempts failed — still reachable
-  return { ok: true, models: [], latencyMs: tcpLatency };
+  if (reachable) {
+    return { ok: true, models: [], latencyMs: bestLatency };
+  }
+
+  return { ok: false, models: [], latencyMs: 0, error: 'Not reachable' };
 }

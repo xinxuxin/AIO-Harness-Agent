@@ -225,9 +225,14 @@ export class CronScheduler {
 
     const timer = setTimeout(() => {
       this.timers.delete(job.id);
-      this.fireFn(job);
+      // Reload job state to avoid firing or rescheduling a stale snapshot
+      // (job may have been disabled or deleted while the timer was pending).
+      const currentJob = loadCronJobs().find((j) => j.id === job.id);
+      const jobToRun = currentJob ?? job;
+      if (!jobToRun.enabled) return;
+      this.fireFn(jobToRun);
       // Immediately reschedule for the next occurrence.
-      this.scheduleOne(job);
+      this.scheduleOne(jobToRun);
     }, Math.max(0, delay));
 
     this.timers.set(job.id, timer);

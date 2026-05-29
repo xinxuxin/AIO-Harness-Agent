@@ -173,13 +173,17 @@ export interface AgentInfo {
   displayName: string;
   description?: string;
   npmPackage?: string;
-  detect: { available: boolean; version?: string; error?: string };
+  detect: { available: boolean; version?: string; error?: string; path?: string };
   /** Bound provider id from agents.json. */
   providerId?: string;
   /** Bound model override. */
   model?: string;
   /** True if this agent is configured as the default for new tabs. */
   isDefault?: boolean;
+  /** Custom binary name or absolute path; falls back to the spec default. */
+  bin?: string;
+  /** The spec-level default binary name (read-only, for display). */
+  defaultBin?: string;
 }
 
 /** Static config loaded from ~/.tday/providers.json (v0.1.0). */
@@ -355,6 +359,7 @@ export const IPC = {
   cronJobsTrigger: 'cron:trigger',
   cronJobsGetStats: 'cron:stats',
   cronJobFired: 'cron:fired', // main -> renderer
+  cronTabsKill: 'cron:tabs-kill', // main -> renderer: close tabs spawned by disabled/deleted jobs
   // CoWorker management
   coworkerList: 'coworker:list',
   coworkerSave: 'coworker:save',

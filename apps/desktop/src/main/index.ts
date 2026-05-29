@@ -204,6 +204,8 @@ function registerIpc(): void {
         providerId: settings.providerId,
         model: settings.model,
         isDefault: id === defaultId,
+        bin: settings.bin,
+        defaultBin: spec?.bin ?? id,
       });
     }
     return out;
@@ -917,8 +919,24 @@ function registerIpc(): void {
   // CronJob management
   ipcMain.handle(IPC.cronJobsList, (): CronJob[] => loadCronJobs());
   ipcMain.handle(IPC.cronJobsSave, (_e, jobs: CronJob[]): void => {
+    // Find jobs that were enabled before but are now disabled or deleted,
+    // so we can kill any agent tabs they spawned.
+    const prevJobs = loadCronJobs();
+    const newEnabledIds = new Set(jobs.filter((j) => j.enabled).map((j) => j.id));
+    const killedJobIds = prevJobs
+      .filter((j) => j.enabled && !newEnabledIds.has(j.id))
+      .map((j) => j.id);
+
     saveCronJobs(jobs);
     cronScheduler.scheduleAll(jobs);
+
+    // Notify renderer to close tabs that were spawned by now-disabled/deleted jobs.
+    if (killedJobIds.length > 0) {
+      const win = mainWindow;
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IPC.cronTabsKill, killedJobIds);
+      }
+    }
   });
   ipcMain.handle(IPC.cronJobsTrigger, (_e, jobId: string): void => {
     const job = loadCronJobs().find((j) => j.id === jobId);

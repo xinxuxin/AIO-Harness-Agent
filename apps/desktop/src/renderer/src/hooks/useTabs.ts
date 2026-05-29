@@ -88,11 +88,29 @@ export function useTabs(home: string, defaultAgentId: AgentId): TabsHook {
         cwdDraft: e.cwd || home,
         initialPrompt: e.prompt,
         isCronJob: true,
+        cronJobId: e.jobId,
       };
       setTabs((prev) => [...prev, t]);
       setActiveId(t.id);
     });
-    return () => { offCron(); };
+
+    // Kill tabs spawned by cron jobs that have been disabled or deleted.
+    const offKill = window.tday.onCronTabsKill((jobIds: string[]) => {
+      const jobIdSet = new Set(jobIds);
+      setTabs((prev) => {
+        const toClose = prev.filter((t) => t.cronJobId && jobIdSet.has(t.cronJobId));
+        for (const t of toClose) void window.tday.kill(t.id);
+        const next = prev.filter((t) => !t.cronJobId || !jobIdSet.has(t.cronJobId));
+        if (next.length === 0) {
+          const fresh = newTab(lastCwd() || home, defaultAgentId);
+          setActiveId(fresh.id);
+          return [fresh];
+        }
+        return next;
+      });
+    });
+
+    return () => { offCron(); offKill(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [home]);
 

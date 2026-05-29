@@ -128,7 +128,7 @@ export const INSTALL_SPECS: Record<AgentId, AgentInstallSpec | undefined> = {
  * On Windows, `where` returns .cmd/.bat paths.  The version check wraps
  * those in `cmd.exe /c` because CreateProcess cannot execute them directly.
  */
-export function detectGeneric(bin: string): { available: boolean; version?: string; error?: string } {
+export function detectGeneric(bin: string): { available: boolean; version?: string; error?: string; path?: string } {
   const cached = detectCache.get(bin);
   if (cached !== undefined) return cached;
   const result = _detectGenericUncached(bin);
@@ -143,9 +143,9 @@ export function invalidateDetectCache(bin?: string): void {
 }
 
 // Cache: binary name → detection result. Populated lazily, invalidated on install/uninstall.
-const detectCache = new Map<string, { available: boolean; version?: string; error?: string }>();
+const detectCache = new Map<string, { available: boolean; version?: string; error?: string; path?: string }>();
 
-function _detectGenericUncached(bin: string): { available: boolean; version?: string; error?: string } {
+function _detectGenericUncached(bin: string): { available: boolean; version?: string; error?: string; path?: string } {
   try {
     // Use absolute paths for system tools: when Electron starts from a shortcut
     // on Windows, PATH may only contain .tday\bin — 'where' and 'which' won't
@@ -174,7 +174,7 @@ function _detectGenericUncached(bin: string): { available: boolean; version?: st
     } catch {
       // version is optional — detection should not fail just because of this
     }
-    return { available: true, version };
+    return { available: true, version, path: raw };
   } catch {
     return { available: false };
   }
